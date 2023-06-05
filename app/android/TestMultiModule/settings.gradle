@@ -1,0 +1,25 @@
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+rootProject.name = "TestMultiModule"
+include ':app'
+include ':core'
+include ':secondgreeting'
+include ':firstgreeting'
+include ':test-catalog'
+include ':mylibrary'
+include ':mylibrary:mylibrary'
+include ':feature:burning'
+include ':feature:welcome'
+include ':feature:goodbye'
