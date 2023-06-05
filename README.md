@@ -1,9 +1,8 @@
-init
+## Development of a Mobile Application and Computer Vision Model for Automated Identification of Electronics Components.
+### INUIKIM NKOYO ASUQUO
+### 18CK024212
 
-### Screenshots 
+![image](https://github.com/InuikimNkoyo/Electronic-Component-Identifier/assets/100963489/418dd1d3-e7c7-4054-af52-1e706b0afaec)
 
-![image](screenshots/Screenshot_20230421-225826.png)
-![image](screenshots/Screenshot_20230421-225837.png)
-![image](screenshots/Screenshot_20230421-225901.png)
 
-# Electronic-Component-Identifier \n Development of a Mobile Application and Computer Vision Model for Automated Identification of Electronics Components.
+
