@@ -1,5 +1,5 @@
 ## Development of a Mobile Application and Computer Vision Model for Automated Identification of Electronics Components.
-###INUIKIM NKOYO ASUQUO
-###18CK024212
+### INUIKIM NKOYO ASUQUO
+### 18CK024212
 
 
