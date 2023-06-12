@@ -36,6 +36,7 @@ import com.nkoyo.componentidentifier.ui.viewmodel.MainViewModel
 import java.time.LocalDateTime
 import androidx.paging.compose.items
 import com.nkoyo.componentidentifier.R
+import com.nkoyo.componentidentifier.ui.theme.LocalBackgroundTheme
 
 @Composable
 fun HistoryListScreen(
@@ -55,11 +56,15 @@ fun HistoryListScreen(
         items(history) { item ->
             HistoryListItem(
                 item = HistoryItem(
+                    id = item?.historyId ?: -1L,
                     componentName = item?.componentName ?: stringResource(id = R.string.component),
                     dateTime = item?.dateTime ?: LocalDateTime.now(),
                     value = "",
                 ),
-                onClick
+                onClick = {
+                    mainViewModel.navigateToHistoryDetails(it.id)
+                    onClick(it)
+                }
             )
         }
     }
@@ -109,8 +114,8 @@ private fun ListItemWrapper(
             role = Role.Button,
         ),
         shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.surface,
-        contentColor = MaterialTheme.colorScheme.outline,
+        color = LocalBackgroundTheme.current.surface,
+        contentColor = LocalBackgroundTheme.current.outline,
         border = BorderStroke(
             width = 1.dp,
             color = MaterialTheme.colorScheme.secondary
@@ -148,7 +153,17 @@ private fun ListItemWrapper(
 
 
 data class HistoryItem(
+    val id: Long,
     val componentName: String,
     val value: String,
     val dateTime: LocalDateTime,
-)
+) {
+    companion object {
+        val Default = HistoryItem(
+            id = -1L,
+            componentName = "",
+            value= "",
+            dateTime = LocalDateTime.MIN,
+        )
+    }
+}

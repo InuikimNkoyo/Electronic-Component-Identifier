@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.res.AssetManager
 import android.graphics.Bitmap
 import android.os.SystemClock
-import android.util.Log
 import com.nkoyo.componentidentifier.R
 import com.nkoyo.componentidentifier.domain.classifier.ComponentClassifier
 import com.nkoyo.componentidentifier.domain.extensions.appendPercent
@@ -22,15 +21,19 @@ import java.io.IOException
 import java.io.InputStreamReader
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
-import java.text.Normalizer
 import java.util.Scanner
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.roundToInt
 
 const val MODEL_FILENAME = "mobilenet_v2_fine_tuned2.tflite"
+const val MODEL_FILENAME_3 = "mobilenet_v2_naive_model.tflite"
 const val MODEL_FILENAME_TEST = "mobilenet_v2_fine_tuned.tflite"
 const val LABEL_FILENAME = "labels.txt"
+const val LABEL_FILENAME_2 = "labels2.txt"
+const val LABEL_FILENAME_4 = "labels3.txt"
+const val MODEL_FILENAME_4 = "mobilenet_v2_naive_11model.tflite"
+
 
 @Singleton
 class ComponentClassifierImpl @Inject constructor(
@@ -48,8 +51,8 @@ class ComponentClassifierImpl @Inject constructor(
     override fun initialize() {
         try {
             val assetManager = context.assets
-            val model = loadModelFile(assetManager, MODEL_FILENAME_TEST) ?: return
-            labels = loadLabelData(context, LABEL_FILENAME)
+            val model = loadModelFile(assetManager, MODEL_FILENAME_4) ?: return
+            labels = loadLabelData(context, LABEL_FILENAME_4)
             val compatibilityList = CompatibilityList()
             val options = Interpreter.Options().apply {
                 if (compatibilityList.isDelegateSupportedOnThisDevice) {
@@ -128,7 +131,7 @@ class ComponentClassifierImpl @Inject constructor(
             val highestProbability =
                 (output.first()[indexArray[0]] * 100)
             Pair(label, highestProbability)
-        }catch (e: Exception) {
+        } catch (e: Exception) {
             e.printStackTrace()
             Pair("", 0f)
         }
@@ -195,7 +198,7 @@ class ComponentClassifierImpl @Inject constructor(
     private fun getMaxResultFromFloatArray(array: FloatArray): IntArray {
         val sortedArray = array.sortedDescending()
         val indexMapper = hashMapOf<Float, Int>()
-        array.forEachIndexed {index, value ->
+        array.forEachIndexed { index, value ->
             indexMapper[value] = index
         }
         //get the indices of the elements with the highest probability

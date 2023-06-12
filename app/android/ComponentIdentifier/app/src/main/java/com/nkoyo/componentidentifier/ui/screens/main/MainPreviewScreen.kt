@@ -20,8 +20,14 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -39,9 +45,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -61,7 +69,7 @@ import com.nkoyo.componentidentifier.domain.usecases.CameraPreviewUseCase
 import com.nkoyo.componentidentifier.domain.usecases.ImageAnalysisUseCase
 import com.nkoyo.componentidentifier.domain.usecases.ImageCaptureFlashMode
 import com.nkoyo.componentidentifier.domain.usecases.ImageCaptureUseCase
-import com.nkoyo.componentidentifier.network.linker
+import com.nkoyo.componentidentifier.network.linker3
 import com.nkoyo.componentidentifier.ui.components.TestRecord
 import com.nkoyo.componentidentifier.ui.viewmodel.HighestProbabilityComponent
 import com.nkoyo.componentidentifier.ui.viewmodel.MainViewModel
@@ -79,12 +87,12 @@ import java.time.LocalDateTime
 fun MainPreviewScreen(
     modifier: Modifier = Modifier,
     windowSizeClass: WindowSizeClass,
-    mainViewModel: MainViewModel = hiltViewModel<MainViewModel>(),
+    mainViewModel: MainViewModel,
     navController: NavHostController,
     onAbortApplication: () -> Unit = {},
     onSavePhotoFile: (File) -> Unit = {},
     onViewRecords: () -> Unit,
-    onPreviewWebInfo: (String) -> Unit,
+    onPreviewWebInfo: () -> Unit,
     cameraPermissionState: PermissionState = rememberPermissionState(
         Manifest.permission.CAMERA
     ),
@@ -93,20 +101,20 @@ fun MainPreviewScreen(
         maxHeight: Dp,
         rotationAngle: Float,
         isMinimized: Boolean,
-        testRecords: List<TestRecord>,
         onScale: () -> Unit,
         info: ComponentInfo,
-    ) -> Unit = { maxWidth, maxHeight, rotationAngle, minimized, records, onScale, info ->
+        openUrl: (String) -> Unit,
+    ) -> Unit = { maxWidth, maxHeight, rotationAngle, minimized, onScale, info, openUrl ->
         StaticBottomSheet(
             maxWidth = maxWidth,
             maxHeight = maxHeight,
             rotationAngle = rotationAngle,
             minimized = minimized,
-            testRecords = records,
             onScale = onScale,
             windowSizeClass = windowSizeClass,
             onPreviewWebInfo = onPreviewWebInfo,
             info = info,
+            openUrl = openUrl,
         )
     },
     gettingStartedContent: @Composable (
@@ -131,11 +139,9 @@ fun MainPreviewScreen(
         maxWidth: Dp,
         maxHeight: Dp,
         isMinimized: Boolean,
-        testRecords: List<TestRecord>,
         onScale: () -> Unit,
         gettingStartedState: Boolean,
         info: ComponentInfo,
-        bottomSheetVisibility: Boolean,
     ) -> Unit = { flashlightState,
                   onToggleFlashLight,
                   onTakeSnapshot,
@@ -144,11 +150,9 @@ fun MainPreviewScreen(
                   maxWidth,
                   maxHeight,
                   isMinimized,
-                  testRecords,
                   onScale,
                   gettingStartedState,
-                  info,
-                  bottomSheetVisibility ->
+                  info ->
         MainPreviewScreenContent(
             rotationAngle = rotationAngle,
             windowSizeClass = windowSizeClass,
@@ -163,14 +167,14 @@ fun MainPreviewScreen(
                     maxHeight = maxHeight,
                     rotationAngle = rotationAngle,
                     isMinimized = isMinimized,
-                    testRecords = testRecords,
                     onScale = onScale,
                     info = info,
+                    openUrl = mainViewModel::openWebUrl
                 )
             },
             gettingStartedState = gettingStartedState,
             onViewRecords = onViewRecords,
-            bottomSheetVisibility = bottomSheetVisibility,
+            isBottomSheetMinimized = isMinimized,
         )
     },
 ) {
@@ -179,20 +183,20 @@ fun MainPreviewScreen(
     val configuration = LocalConfiguration.current
     val coroutineScope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
-    val cameraSelector = mainViewModel.cameraSelector
+    val cameraSelector by mainViewModel.cameraSelector.collectAsStateWithLifecycle()
     val cameraExecutor = mainViewModel.cameraExecutor
     val flashLightExecutor = mainViewModel.flashLightExecutor
     val bottomSheetMinimized by mainViewModel.bottomSheetMinimized.collectAsState()
+    val classificationState by mainViewModel.classificationState.collectAsStateWithLifecycle()
     val gettingStartedState by mainViewModel.gettingStartedState.collectAsStateWithLifecycle()
     var rotationAngle by remember { mutableStateOf(0f) }
-    val objectBoundingBoxes by mainViewModel.objectBoundingBoxes.collectAsStateWithLifecycle()
     val highestProbabilityComponent by mainViewModel.currentHighestProbabilityComponent.collectAsStateWithLifecycle()
-    val bottomSheetVisibilityState by mainViewModel.bottomSheetVisibilityState.collectAsStateWithLifecycle()
     val highestProbabilityComponentBuffer = remember {
         mutableStateOf<HighestProbabilityComponent>(
             HighestProbabilityComponent.Default
         )
     }
+    var progressWheel by remember { mutableStateOf(false) }
 
     val previewView: PreviewView = remember {
         val view = PreviewView(context).apply {
@@ -213,7 +217,6 @@ fun MainPreviewScreen(
         remember(flashLightState) { mutableStateOf(ImageCaptureUseCase().of(flashLightState)) }
     val imageAnalysisUseCase =
         remember { mutableStateOf(ImageAnalysisUseCase().of(Size(point.x, point.y))) }
-    var records by remember { mutableStateOf<List<TestRecord>>(listOf()) }
 
     val orientationEventListener by lazy {
         object : OrientationEventListener(context) {
@@ -232,20 +235,31 @@ fun MainPreviewScreen(
         }
     }
 
-    LaunchedEffect(highestProbabilityComponent, gettingStartedState) {
+    LaunchedEffect(
+        highestProbabilityComponent.label,
+        gettingStartedState,
+        classificationState,
+        bottomSheetMinimized,
+    ) {
+        progressWheel = classificationState && bottomSheetMinimized && !gettingStartedState
         //control the bottom sheet data and visibility
+        if (!classificationState) {
+            mainViewModel.onBottomSheetMinimizedChanged(true)
+        }
+
         Log.e(TAG, "MainPreviewScreen: bottom sheet effect called")
-        if(gettingStartedState) return@LaunchedEffect
-        if(highestProbabilityComponent == HighestProbabilityComponent.Default) return@LaunchedEffect
+        if (gettingStartedState) return@LaunchedEffect
+        if (highestProbabilityComponent == HighestProbabilityComponent.Default) return@LaunchedEffect
         delay(3_000)
-        if(!bottomSheetVisibilityState) {
+        if (classificationState && bottomSheetMinimized) {
             highestProbabilityComponentBuffer.value = highestProbabilityComponent
-            mainViewModel.updateBottomSheetVisibility(true)
+            mainViewModel.onBottomSheetMinimizedChanged(false)
         }
     }
 
     DisposableEffect(Unit) {
-        mainViewModel.updateBottomSheetVisibility(false)
+        mainViewModel.onBottomSheetMinimizedChanged(true)
+        mainViewModel.updateClassificationState(true)
         orientationEventListener.enable()
         onDispose { orientationEventListener.disable() }
     }
@@ -331,33 +345,32 @@ fun MainPreviewScreen(
                     }
                 },
                 onTakeSnapshot = {
+                    mainViewModel.updateHighestProbabilityLabel(highestProbabilityComponent.label.uppercase())
                     coroutineScope.launch {
                         imageCaptureUseCase.value.takeSnapshot(context.executor)
                             .let(onSavePhotoFile)
                     }
                 },
                 onToggleCamera = {
-                    //TODO()
+                    mainViewModel.onToggleCameraSelector(cameraSelector)
                 },
                 maxWidth = maxWidth,
                 maxHeight = maxHeight,
                 isMinimized = bottomSheetMinimized,
-                testRecords = records,
                 onScale = { mainViewModel.onBottomSheetMinimizedChanged(!bottomSheetMinimized) },
                 gettingStartedState = gettingStartedState,
                 info = ComponentInfo(
                     componentName = highestProbabilityComponentBuffer.value.label.uppercase(),
-                    description = linker[highestProbabilityComponentBuffer.value.label]?.second.orEmpty(),
-                    url = linker[highestProbabilityComponentBuffer.value.label]?.first.orEmpty(),
+                    description = linker3[highestProbabilityComponentBuffer.value.label]?.second.orEmpty(),
+                    url = linker3[highestProbabilityComponentBuffer.value.label]?.first.orEmpty(),
                     dateTime = LocalDateTime.now(),
                 ),
-                bottomSheetVisibility = bottomSheetVisibilityState,
             )
 
             if (windowSizeClass.widthSizeClass == WindowWidthSizeClass.Compact) {
                 //static bottom sheet
                 AnimatedVisibility(
-                    visible = bottomSheetVisibilityState,
+                    visible = !gettingStartedState,
                     enter = slideInVertically(
                         animationSpec = tween(
                             durationMillis = 200,
@@ -381,15 +394,40 @@ fun MainPreviewScreen(
                             maxHeight = maxHeight,
                             rotationAngle = rotationAngle,
                             isMinimized = bottomSheetMinimized,
-                            testRecords = records,
-                            onScale = { mainViewModel.onBottomSheetMinimizedChanged(!bottomSheetMinimized) },
+                            onScale = {
+                                mainViewModel.updateClassificationState(!classificationState)
+                            },
                             info = ComponentInfo(
                                 componentName = highestProbabilityComponentBuffer.value.label.uppercase(),
-                                description = linker[highestProbabilityComponentBuffer.value.label]?.second.orEmpty(),
-                                url = linker[highestProbabilityComponentBuffer.value.label]?.first.orEmpty(),
+                                description = linker3[highestProbabilityComponentBuffer.value.label]?.second.orEmpty(),
+                                url = linker3[highestProbabilityComponentBuffer.value.label]?.first.orEmpty(),
                                 dateTime = LocalDateTime.now(),
-                            )
+                            ),
+                            openUrl = mainViewModel::openWebUrl,
                         )
+                    }
+                }
+            }
+
+            if(progressWheel) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(
+                            modifier = Modifier
+                                .height(28.dp)
+                                .width(28.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            strokeWidth = 4.dp,
+                            trackColor = MaterialTheme.colorScheme.primary.copy(0.5f),
+                            strokeCap = StrokeCap.Round,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                       Text(
+                           text = stringResource(id = R.string.classifying),
+                           style = MaterialTheme.typography.labelLarge.copy(
+                               color = MaterialTheme.colorScheme.primary
+                           )
+                       )
                     }
                 }
             }
